@@ -1,28 +1,5 @@
 #include "config.h"
 
-void connect() {
-  Serial.print(F("Connecting to Adafruit IO... "));
-  int8_t ret;
-  while ((ret = mqtt.connect()) != 0) {
-    switch (ret) {
-      case 1: Serial.println(F("Wrong protocol")); break;
-      case 2: Serial.println(F("ID rejected")); break;
-      case 3: Serial.println(F("Server unavail")); break;
-      case 4: Serial.println(F("Bad user/pass")); break;
-      case 5: Serial.println(F("Not authed")); break;
-      case 6: Serial.println(F("Failed to subscribe")); break;
-      default: Serial.println(F("Connection failed")); break;
-    }
-
-    if(ret >= 0)
-      mqtt.disconnect();
-
-    Serial.println(F("Retrying connection..."));
-    delay(10000);
-  }
-  Serial.println(F("Adafruit IO Connected!"));
-}
-
 void setup() {
   Serial.begin(115200);
   dht.setup(DHTPIN, DHTesp::DHT11);
@@ -32,10 +9,7 @@ void setup() {
   pinMode(REDPIN, OUTPUT);
   pinMode(GREENPIN, OUTPUT);
 
-  Serial.println(F("Adafruit IO Example"));
-  // Connect to WiFi access point.
-  Serial.println(); Serial.println();
-  delay(10);
+  /* Connect Wifi */
   Serial.print(F("Connecting to "));
   Serial.println(WLAN_SSID);
   WiFi.begin(WLAN_SSID, WLAN_PASS);
@@ -48,79 +22,83 @@ void setup() {
   Serial.println(F("IP address: "));
   Serial.println(WiFi.localIP());
 
-  // connect to adafruit io
-  connect();
+  /* Connect MQTT Broker */
+  mqtt.setServer(MQTT_SERVER, MQTT_PORT);
+  while (!client.connected()) {
+     String client_id = "esp32-client-";
+     client_id += String(WiFi.macAddress());
+     Serial.printf("The client %s connects to the public mqtt broker\n", client_id.c_str());
+     if (mqtt.connect(client_id.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
+         Serial.println("Public emqx mqtt broker connected");
+     } else {
+         Serial.print("failed with state ");
+         Serial.print(mqtt.state());
+         delay(2000);
+     }
+ }
+}
+
+/*Set up Deep Sleep Mode*/
+void enterDeepSleep() {
+  Serial.println("Entering Deep Sleep...");
+  // Thiết lập chế độ Deep Sleep
+  esp_sleep_enable_timer_wakeup(15 * 60 * 1000000); // Đánh thức sau 30 phút (15 * 1000000 micro giây)
+
+  // Khởi động Deep Sleep
+  esp_deep_sleep_start();
 }
 
 void loop() {
-  float temperature = dht.getTemperature();
-  float humidity = dht.getHumidity();
-  int soundValue = analogRead(soundPin);
-  int lightValue = analogRead(lightPin);
-  int gasValue = digitalRead(gasPin);
+    int temperature = dht.getTemperature();
+    int humidity = dht.getHumidity();
+    int lightValue = analogRead(lightPin);
+    int gasValue = digitalRead(gasPin);
+    char temperatureStr[8];
+    char humidityStr[8];
 
-  // Hiển thị nhiệt độ và độ ẩm trên Serial Monitor
-  Serial.print("Temperature: ");
-  Serial.print(temperature);
-  Serial.print(" °C\t");
-  Serial.print("Humidity: ");
-  Serial.print(humidity);
-  Serial.println(" %");
-  Serial.print("Sound: ");
-  Serial.println(soundValue);
-  Serial.print("Gas: ");
-  Serial.println(gasValue);
-  // ping adafruit io a few times to make sure we remain connected
-  if(! mqtt.ping(3)) {
-    // reconnect to adafruit io
-    if(! mqtt.connected())
-      connect();
-  }
-  delay(3000);
-/* Publish to Adafruit */
-  if (! Temperature1.publish(temperature)) {                     
-    Serial.println(F("Failed"));
-  } 
-  if (! Humidity1.publish(humidity)) {                   
-    Serial.println(F("Failed"));
-  }
-  if (! Sound1.publish(soundValue)){
-    Serial.println(F("Failed"));
-  }
-  else {
-    Serial.println(F("Sent!"));
-  }
-  // Hiển thị nhiệt độ và độ ẩm trên màn hình LCD
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Tem:");
-  lcd.print(temperature);
-  lcd.setCursor(0, 1);
-  lcd.print("Hum:");
-  lcd.print(humidity);
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.print(" °C\t");
+    Serial.print("Humidity: ");
+    Serial.print(humidity);
+    Serial.println(" %");
+    Serial.print("Gas: ");
+    Serial.println(gasValue);
 
-  if(lightValue > 3800){
-    lcd.setCursor(10,0);
-    lcd.print("Night");
-  }
-  else{
-    lcd.setCursor(10,0);
-    lcd.print("Day  ");
-  }
+    /* Num to string and publish data to mqtt broker */
+    snprintf(temperatureStr, sizeof(temperatureStr), "%d", temperature);
+    snprintf(humidityStr, sizeof(humidityStr), "%d", humidity);
+    mqtt.publish(MQTT_TOPIC_TEMPERATURE,temperatureStr);
+    mqtt.publish(MQTT_TOPIC_HUMIDITY, humidityStr);
+    Serial.println("Sent");
 
-  if(soundValue > 2000){
-    lcd.setCursor(10,1);
-    lcd.print("Windy ");
-  }
-  else{
-    lcd.setCursor(10,1);
-    lcd.print("Normal");
-  }
-  if(gasValue == 1){
-    digitalWrite(REDPIN,1);
-  }
-  else{
-    digitalWrite(GREENPIN,1);
-  }
-  delay(2000);
+    /* Display LCD */
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Temp:  ");
+    lcd.print(temperature);
+    lcd.setCursor(0, 1);
+    lcd.print("Humid: ");
+    lcd.print(humidity);
+
+    if(lightValue > 3800){
+      lcd.setCursor(10,0);
+      lcd.print("Night");
+    }
+    else{
+      lcd.setCursor(10,0);
+      lcd.print("Day  ");
+    }
+    if(gasValue == 1){
+      digitalWrite(REDPIN,1);
+      lcd.setCursor(10,1);
+      lcd.print("WARNING");
+    }
+    else{
+      digitalWrite(GREENPIN,1);
+      lcd.setCursor(10,1);
+      lcd.print("Stable");
+    }
+    delay(5000);
+    enterDeepSleep();
 }
