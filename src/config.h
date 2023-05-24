@@ -4,9 +4,7 @@
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
 #include <Wifi.h>
-
-
-
+#include <esp_sleep.h>
 // WiFi parameters
 #define WLAN_SSID       "A1"
 #define WLAN_PASS       "88889999"
@@ -14,7 +12,7 @@
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883
 #define AIO_USERNAME    "fong1668vn"
-#define AIO_KEY         "aio_zzcI95MOqmscjWcueRzccjnMYpox" 
+#define AIO_KEY         "aio_VPYA09WGwcuiAWN0qYPjNVTOwR9E" 
 WiFiClient client;
 
 #define DHTPIN 4
@@ -35,6 +33,6 @@ const int gasPin = 25;
 
 /*Config Adafruit*/
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
-Adafruit_MQTT_Publish Temperature1 = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/weather-temp");
-Adafruit_MQTT_Publish Humidity1 = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/weather-humi");
-Adafruit_MQTT_Publish Sound1 = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/weather-wind");
+Adafruit_MQTT_Publish Temperature1 = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/data-sensor.weather-temperature");
+Adafruit_MQTT_Publish Humidity1 = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/data-sensor.weather-humidity");
+Adafruit_MQTT_Publish Sound1 = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/data-sensor.weather-windspeed");
